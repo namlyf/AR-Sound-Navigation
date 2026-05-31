@@ -26,8 +26,7 @@ public class SetNavigationTarget : MonoBehaviour
     [SerializeField] [Range(1f,   10f)]  private float lookaheadDistance  = 2.5f;
 
     [Header("Performance")]
-    [SerializeField] [Range(0.1f, 1f)]   private float pathRecalcInterval = 0.3f; // giây
-
+    [SerializeField] [Range(0.1f, 1f)]   private float pathRecalcInterval = 0.3f;
     [Header("AR Reference")]
     [SerializeField] private Transform arCamera;
 
