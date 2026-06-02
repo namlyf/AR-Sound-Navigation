@@ -6,7 +6,6 @@ using UnityEngine.UI;
 
 public class SetNavigationTarget : MonoBehaviour
 {
-    // ── GIỐNG HỆT TUTORIAL ───────────────────────────────────────────────────
     [SerializeField] private TMP_Dropdown navigationTargetDropDown;
     [SerializeField] private List<Target> navigationTargetObjects = new List<Target>();
     [SerializeField] private Slider       navigationYOffset;
@@ -17,7 +16,7 @@ public class SetNavigationTarget : MonoBehaviour
     private Vector3 targetPosition = Vector3.zero;
     private bool    lineToggle     = false;
 
-    // ── THÊM: audio improvements ─────────────────────────────────────────────
+    //audio improvements
     [Header("Audio Improvements")]
     [SerializeField] private AudioClip arrivalSound;
     [SerializeField] [Range(0.5f, 10f)]  private float arrivalDistance    = 1.5f;
@@ -33,14 +32,14 @@ public class SetNavigationTarget : MonoBehaviour
     private bool  hasArrived    = false;
     private float arrivalVolume = 1f;
 
-    // ── Cache — tính 1 lần/frame dùng nhiều chỗ ──────────────────────────────
+    // Cache default values to avoid redundant calculations
     private float   pathRecalcTimer    = 0f;
     private float   cachedPathLength   = 0f;
     private float   cachedDistToTarget = 0f;
     private Vector3 cachedLookahead    = Vector3.zero;
     private float   cachedAngle        = 0f;
 
-    // ── Start ─────────────────────────────────────────────────────────────────
+    // Start - init NavMeshPath, LineRenderer, and cache audio volume; ensure AR camera reference is set
     private void Start() {
         path = new NavMeshPath();
         line = transform.GetComponent<LineRenderer>();
@@ -55,11 +54,11 @@ public class SetNavigationTarget : MonoBehaviour
         }
     }
 
-    // ── Update — tính path theo interval, cache kết quả ──────────────────────
+    // Update - recalculate path at intervals, refresh cache when needed, and update line renderer and audio based on cached values; skip processing if no target is set
     private void Update() {
         if (targetPosition == Vector3.zero) return;
 
-        // Tính lại path theo interval thay vì mỗi frame
+        // Recalculate path at defined intervals to optimize performance
         pathRecalcTimer += Time.deltaTime;
         bool pathRecalculated = false;
         if (pathRecalcTimer >= pathRecalcInterval) {
@@ -68,12 +67,12 @@ public class SetNavigationTarget : MonoBehaviour
             NavMesh.CalculatePath(transform.position, targetPosition, NavMesh.AllAreas, path);
         }
 
-        // Chỉ tính lại cache khi path mới hoặc player di chuyển đủ xa
+        // Refresh cache if path is recalculated or if player has moved significantly from the last look-ahead point
         if (pathRecalculated || Vector3.Distance(transform.position, cachedLookahead) > 0.5f) {
             RefreshCache();
         }
 
-        // Line renderer — chỉ update khi bật
+        // Update line renderer positions if enabled; use cached path corners with Y offset for better performance
         if (lineToggle) {
             line.positionCount = path.corners.Length;
             line.SetPositions(AddLineOffset());
@@ -82,7 +81,7 @@ public class SetNavigationTarget : MonoBehaviour
         UpdateAudio();
     }
 
-    // ── Tính tất cả giá trị tốn CPU 1 lần, lưu vào cache ────────────────────
+    // Cache calculations to avoid redundant processing in Update; only recalculate when path changes or player moves significantly; includes path length, distance to target, look-ahead point, and angle to look-ahead for audio adjustments
     private void RefreshCache() {
         if (path == null || path.corners.Length < 2) {
             cachedPathLength   = 0f;
@@ -92,18 +91,18 @@ public class SetNavigationTarget : MonoBehaviour
             return;
         }
 
-        // 1. Path length — loop corners 1 lần duy nhất
+        // Path length
         cachedPathLength = 0f;
         for (int i = 0; i < path.corners.Length - 1; i++)
             cachedPathLength += Vector3.Distance(path.corners[i], path.corners[i + 1]);
 
-        // 2. Distance thẳng đến đích
+        // Distance to target
         cachedDistToTarget = Vector3.Distance(transform.position, targetPosition);
 
-        // 3. Look-ahead point — loop corners 1 lần duy nhất
+        // Look-ahead point
         cachedLookahead = ComputeLookaheadPoint();
 
-        // 4. Góc hướng
+        // Angle to look-ahead point for audio adjustments
         Vector3 toLookahead   = cachedLookahead - transform.position;
         Vector3 playerForward = arCamera.forward;
         toLookahead.y   = 0f;
@@ -122,7 +121,7 @@ public class SetNavigationTarget : MonoBehaviour
         return targetPosition;
     }
 
-    // ── Audio — dùng cache, không tính lại ───────────────────────────────────
+    // Audio updates based on cached distance and angle; handles arrival sound, pitch and volume adjustments, and ensures audio source is positioned at the look-ahead point for better spatial feedback; stops audio when arrived or when no valid path exists
     private void UpdateAudio() {
         if (navigationAudioSource == null) return;
 
@@ -131,7 +130,7 @@ public class SetNavigationTarget : MonoBehaviour
             return;
         }
 
-        // Đến đích
+        // Arrival handling
         if (cachedDistToTarget <= arrivalDistance) {
             if (!hasArrived) {
                 hasArrived = true;
@@ -143,25 +142,25 @@ public class SetNavigationTarget : MonoBehaviour
             return;
         }
 
-        // Di chuyển sound đến look-ahead point
+        // Update audio source position to look-ahead point for better spatial feedback
         navigationAudioSource.transform.position = cachedLookahead;
 
-        // Pitch — dùng cachedDistToTarget
+        // Pitch
         float t = 1f - Mathf.Clamp01(cachedDistToTarget / pitchRampDistance);
         navigationAudioSource.pitch = Mathf.Lerp(1.0f, 1.8f, t);
 
-        // Volume — dùng cachedAngle
+        // Volume
         float volumeMultiplier = 1f - Mathf.Clamp01((cachedAngle - 30f) / (wrongDirectionAngle - 30f));
         navigationAudioSource.volume = Mathf.Lerp(0.1f, arrivalVolume, volumeMultiplier);
 
         if (!navigationAudioSource.isPlaying) navigationAudioSource.Play();
     }
 
-    // ── Hàm public giữ nguyên 100% tutorial ──────────────────────────────────
+    // Set navigation target based on dropdown selection; resets state and forces path recalculation; finds target position from list and updates audio source if needed
     public void SetCurrentNavigationTarget(int selectedValue) {
         targetPosition  = Vector3.zero;
         hasArrived      = false;
-        pathRecalcTimer = pathRecalcInterval; // tính path ngay frame tiếp
+        pathRecalcTimer = pathRecalcInterval;
 
         string selectedText  = navigationTargetDropDown.options[selectedValue].text;
         Target currentTarget = navigationTargetObjects.Find(x => x.Name.Equals(selectedText));
@@ -205,9 +204,8 @@ public class SetNavigationTarget : MonoBehaviour
             navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("Hall1"));
         }
         if (floorNumber == 2) {
-            navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("SecondHall"));
-            navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("Rooftop"));
-            navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("WorshipRoom"));
+            navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("MainEntrance"));
+            navigationTargetDropDown.options.Add(new TMP_Dropdown.OptionData("LargeHall"));
         }
     }
 }
